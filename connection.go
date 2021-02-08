@@ -18,6 +18,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pingcap/tidb/server"
+	"github.com/pingcap/tidb/session"
+	"github.com/pingcap/tidb/store/mockstore"
 )
 
 type mysqlConn struct {
@@ -325,6 +329,28 @@ func (mc *mysqlConn) Exec(query string, args []driver.Value) (driver.Result, err
 
 // Internal function to execute commands
 func (mc *mysqlConn) exec(query string) error {
+	store, err := mockstore.NewMockStore(mockstore.WithStoreType(mockstore.MockTiKV))
+	if err != nil {
+		return nil, err
+	}
+
+	se, err := session.CreateSession(store)
+	if err != nil {
+		return nil, err
+	}
+
+	tc := &server.TiDBContext{
+		session:   se,
+		currentDB: dbname,
+		stmts:     make(map[int]*server.TiDBStatement),
+	}
+
+	result, err := tc.Execute(context.Background(), query)
+	if err != nil {
+		return err
+	}
+	fmt.Println(result)
+
 	// Send command
 	if err := mc.writeCommandPacketStr(comQuery, query); err != nil {
 		return mc.markBadConn(err)
